@@ -1,0 +1,255 @@
+const int numKeys = 24;
+
+int channel[numKeys]; 
+
+const int colourLookup[128];
+
+const int midiNoteOff         = 0x8;
+const int midiNoteOn          = 0x9;
+const int midiAftertouch      = 0xa;
+const int midiChannelPressure = 0xd;
+const int max = 64;
+
+const int configItemId_octave = 4;
+const int configItemId_octaveTopology = 8;
+
+const int KeyLed_virtual = 1;           // KeyLed[keyIndex][KeyLed_virtual] : if a key is virtually pressed, this value will contain the colour to display, otherwise 0
+const int KeyLed_brightness = 3;        // KeyLed[keyIndex][KeyLed_brightness] : should contain the current brightness level
+const int KeyLed_numComponents = 4;
+
+int KeyLed[numKeys][KeyLed_numComponents];
+
+int currentOctave;
+float currentGlobalBrightness;
+
+int rVal;
+int gVal;
+int bVal;
+
+
+//Total possible unique colours is 16,777,216 (256 * 256 * 256)
+
+void initialise() {
+  currentOctave = getLocalConfig (configItemId_octave);
+  fillReferenceColourTable();  
+  
+  for(int i = 0; i < 24; i++) {
+    int color = makeARGB(255, 0, 0, 0);
+    fillPixel(color, i, 0);
+  }
+}
+
+void keyStrike (int index, int z, int vz) {
+    
+  int color = colourLookup[index];
+  fillPixel(color, index, 0);  
+
+  int note = getNote (index);
+  int chan = assignChannel (note);
+  channel[index] = chan;
+
+  sendNoteOn (chan, note, vz);
+}
+
+void keyPress (int index, int z, int vz)
+{
+    int note = getNote (index);
+    int chan = channel[index];
+
+    sendAftertouch (chan, note, z);
+}
+
+void keyLift (int index, int z, int vz)
+{
+    int color = makeARGB(255, 0, 0, 0);
+    fillPixel(color, index, 0);
+    
+    int note = getNote (index);
+    int chan = channel[index];
+
+    sendNoteOff (chan, note, vz);
+    deassignChannel (note, chan);
+}
+
+int getNote(int index) {
+  return 48 + 0 * 12 + index;
+}
+
+void handleMIDI (int byte0, int byte1, int byte2)
+{
+    int channel = byte0 & 0xf;
+    int status = (byte0 >> 4) & 0xf;
+    int key = getKey (byte1);
+
+    if (status == midiNoteOn)
+    {
+        if (byte2 == 0) // special case, some DAWs will note off with a 0 velocity note on
+            KeyLed[key][KeyLed_virtual] = 0;
+
+        KeyLed[key][KeyLed_virtual] = colourLookup[byte2];
+        
+        int color = colourLookup[key];
+        fillPixel(color, key, 0);  
+        
+    }
+    else if (status == midiNoteOff)
+    {
+        KeyLed[key][KeyLed_virtual] = 0;
+        
+        int color = makeARGB(255, 0, 0, 0);
+        fillPixel(color, key, 0);
+        
+    }
+    else if (status == midiAftertouch)
+    {
+        KeyLed[key][KeyLed_brightness] = int (map (float (byte2), 0.0, 127.0, 0.0, 255.0));
+    }
+    else if (status == midiChannelPressure)
+    {
+        currentGlobalBrightness = map (float (byte2), 0.0, 127.0, 0.0, 1.0);
+    }
+}
+
+int getKey (int note)
+{
+    int baseNoteNumber = 48 + ((currentOctave + getLocalConfig (configItemId_octaveTopology)) * 12);
+
+    if (note < baseNoteNumber || note >= (baseNoteNumber + 24))
+        return -1;
+
+    return note - baseNoteNumber;
+}
+
+void fillReferenceColourTable()
+{
+    // Reference table used for sanity checking (128 values)
+    int i = 0;
+    colourLookup[i++] = 0xffff4c72; 
+    colourLookup[i++] = 0xffff506f; 
+    colourLookup[i++] = 0xffff546c; 
+    colourLookup[i++] = 0xffff5869; 
+    colourLookup[i++] = 0xffff5c66; 
+    colourLookup[i++] = 0xffff6063; 
+    colourLookup[i++] = 0xffff6460; 
+    colourLookup[i++] = 0xffff695c; 
+    colourLookup[i++] = 0xffff6d59; 
+    colourLookup[i++] = 0xffff7156; 
+    colourLookup[i++] = 0xffff7553; 
+    colourLookup[i++] = 0xffff7950; 
+    colourLookup[i++] = 0xffff7d4d; 
+    colourLookup[i++] = 0xffff814a; 
+    colourLookup[i++] = 0xffff8547; 
+    colourLookup[i++] = 0xffff8944; 
+    colourLookup[i++] = 0xffff8d41; 
+    colourLookup[i++] = 0xffff923d; 
+    colourLookup[i++] = 0xffff963a; 
+    colourLookup[i++] = 0xffff9a37; 
+    colourLookup[i++] = 0xffff9e34; 
+    colourLookup[i++] = 0xffffa231; 
+    colourLookup[i++] = 0xffffa62e; 
+    colourLookup[i++] = 0xffffaa2e; 
+    colourLookup[i++] = 0xffffae2d; 
+    colourLookup[i++] = 0xffffb12d; 
+    colourLookup[i++] = 0xffffb52c; 
+    colourLookup[i++] = 0xffffb92c; 
+    colourLookup[i++] = 0xffffbd2b; 
+    colourLookup[i++] = 0xffffc12b; 
+    colourLookup[i++] = 0xffffc42b; 
+    colourLookup[i++] = 0xffffc82a; 
+    colourLookup[i++] = 0xffffcc2a; 
+    colourLookup[i++] = 0xffffd029; 
+    colourLookup[i++] = 0xffffd429; 
+    colourLookup[i++] = 0xffffd828; 
+    colourLookup[i++] = 0xffffdb28; 
+    colourLookup[i++] = 0xffffdf28; 
+    colourLookup[i++] = 0xffffe327; 
+    colourLookup[i++] = 0xffffe727; 
+    colourLookup[i++] = 0xffffeb26; 
+    colourLookup[i++] = 0xffffee26; 
+    colourLookup[i++] = 0xfffff225; 
+    colourLookup[i++] = 0xfffff625; 
+    colourLookup[i++] = 0xfff7f62a; 
+    colourLookup[i++] = 0xfff0f72e; 
+    colourLookup[i++] = 0xffe8f733; 
+    colourLookup[i++] = 0xffe1f837; 
+    colourLookup[i++] = 0xffd9f83c; 
+    colourLookup[i++] = 0xffd1f841; 
+    colourLookup[i++] = 0xffcaf945; 
+    colourLookup[i++] = 0xffc2f94a; 
+    colourLookup[i++] = 0xffbaf94f; 
+    colourLookup[i++] = 0xffb3fa53; 
+    colourLookup[i++] = 0xffabfa58; 
+    colourLookup[i++] = 0xffa4fb5c; 
+    colourLookup[i++] = 0xff9cfb61; 
+    colourLookup[i++] = 0xff94fb66; 
+    colourLookup[i++] = 0xff8dfc6a; 
+    colourLookup[i++] = 0xff85fc6f; 
+    colourLookup[i++] = 0xff7dfc74; 
+    colourLookup[i++] = 0xff76fd78; 
+    colourLookup[i++] = 0xff6efd7d; 
+    colourLookup[i++] = 0xff67fe81; 
+    colourLookup[i++] = 0xff5ffe86; 
+    colourLookup[i++] = 0xff5cfc8b; 
+    colourLookup[i++] = 0xff59fa8f; 
+    colourLookup[i++] = 0xff56f894; 
+    colourLookup[i++] = 0xff53f698; 
+    colourLookup[i++] = 0xff50f49d; 
+    colourLookup[i++] = 0xff4df2a2; 
+    colourLookup[i++] = 0xff4af0a6; 
+    colourLookup[i++] = 0xff47eeab; 
+    colourLookup[i++] = 0xff44ecb0; 
+    colourLookup[i++] = 0xff41eab4; 
+    colourLookup[i++] = 0xff3ee9b9; 
+    colourLookup[i++] = 0xff3be7bd; 
+    colourLookup[i++] = 0xff38e5c2; 
+    colourLookup[i++] = 0xff35e3c7; 
+    colourLookup[i++] = 0xff32e1cb; 
+    colourLookup[i++] = 0xff2fdfd0; 
+    colourLookup[i++] = 0xff2cddd5; 
+    colourLookup[i++] = 0xff29dbd9; 
+    colourLookup[i++] = 0xff26d9de; 
+    colourLookup[i++] = 0xff23d7e2; 
+    colourLookup[i++] = 0xff20d5e7; 
+    colourLookup[i++] = 0xff23d0e8; 
+    colourLookup[i++] = 0xff26cbe9; 
+    colourLookup[i++] = 0xff29c6ea; 
+    colourLookup[i++] = 0xff2cc1ec; 
+    colourLookup[i++] = 0xff2fbced; 
+    colourLookup[i++] = 0xff32b7ee; 
+    colourLookup[i++] = 0xff35b2ef; 
+    colourLookup[i++] = 0xff38adf0; 
+    colourLookup[i++] = 0xff3ba8f1; 
+    colourLookup[i++] = 0xff3ea3f2; 
+    colourLookup[i++] = 0xff409ff4; 
+    colourLookup[i++] = 0xff439af5; 
+    colourLookup[i++] = 0xff4695f6; 
+    colourLookup[i++] = 0xff4990f7; 
+    colourLookup[i++] = 0xff4c8bf8; 
+    colourLookup[i++] = 0xff4f86f9; 
+    colourLookup[i++] = 0xff5281fa; 
+    colourLookup[i++] = 0xff557cfc; 
+    colourLookup[i++] = 0xff5877fd; 
+    colourLookup[i++] = 0xff5b72fe; 
+    colourLookup[i++] = 0xff5e6dff; 
+    colourLookup[i++] = 0xff616bfe; 
+    colourLookup[i++] = 0xff6469fd; 
+    colourLookup[i++] = 0xff6767fc; 
+    colourLookup[i++] = 0xff6b64fb; 
+    colourLookup[i++] = 0xff6e62fa; 
+    colourLookup[i++] = 0xff7160f9; 
+    colourLookup[i++] = 0xff745ef8; 
+    colourLookup[i++] = 0xff775cf7; 
+    colourLookup[i++] = 0xff7a5af6; 
+    colourLookup[i++] = 0xff7e58f5; 
+    colourLookup[i++] = 0xff8155f3; 
+    colourLookup[i++] = 0xff8453f2; 
+    colourLookup[i++] = 0xff8751f1; 
+    colourLookup[i++] = 0xff8a4ff0; 
+    colourLookup[i++] = 0xff8d4def; 
+    colourLookup[i++] = 0xff904bee; 
+    colourLookup[i++] = 0xff9448ed; 
+    colourLookup[i++] = 0xff9746ec; 
+    colourLookup[i++] = 0xff9a44eb; 
+    colourLookup[i++] = 0xff9d42ea; 
+    colourLookup[i++] = 0xffffffff;
+}
