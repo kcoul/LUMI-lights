@@ -1,23 +1,16 @@
 const int numKeys = 24;
+const int max = 64;
 
 int channel[numKeys]; 
 
-const int colourLookup[128];
+const int colourLookup[24];
+//const int colourLookup[128];
 
 const int midiNoteOff         = 0x8;
 const int midiNoteOn          = 0x9;
-const int midiAftertouch      = 0xa;
-const int midiChannelPressure = 0xd;
-const int max = 64;
+const int midiPitchBend       = 0xe;
 
-const int configItemId_octave = 4;
 const int configItemId_octaveTopology = 8;
-
-const int KeyLed_virtual = 1;           // KeyLed[keyIndex][KeyLed_virtual] : if a key is virtually pressed, this value will contain the colour to display, otherwise 0
-const int KeyLed_brightness = 3;        // KeyLed[keyIndex][KeyLed_brightness] : should contain the current brightness level
-const int KeyLed_numComponents = 4;
-
-int KeyLed[numKeys][KeyLed_numComponents];
 
 int currentOctave;
 float currentGlobalBrightness;
@@ -26,11 +19,7 @@ int rVal;
 int gVal;
 int bVal;
 
-
-//Total possible unique colours is 16,777,216 (256 * 256 * 256)
-
 void initialise() {
-  currentOctave = getLocalConfig (configItemId_octave);
   fillReferenceColourTable();  
   
   for(int i = 0; i < 24; i++) {
@@ -44,6 +33,9 @@ void keyStrike (int index, int z, int vz) {
   int color = colourLookup[index];
   fillPixel(color, index, 0);  
 
+  //Test increment/decrement
+  //colourLookup[index] += 0xFF000010;
+  
   int note = getNote (index);
   int chan = assignChannel (note);
   channel[index] = chan;
@@ -75,38 +67,42 @@ int getNote(int index) {
   return 48 + 0 * 12 + index;
 }
 
-void handleMIDI (int byte0, int byte1, int byte2)
+//Total possible unique colours is 16,777,216 (256 * 256 * 256)
+//TODO: Handle pitch bend on last 12 channels to tune colours of notes
+//TODO: Map resolution of 16384 across restricted ranges for each note (+/- 8192)
+//TODO: Which is therefore about 196,608 per note (2,359,296 across whole octave)
+//TODO: This gives a resolution of about 7 shades per increment (16,777,216 / 2,359,296 = 7.1bar)
+void handleMIDI (int byte0, int byte1, int byte2) 
 {
     int channel = byte0 & 0xf;
     int status = (byte0 >> 4) & 0xf;
-    int key = getKey (byte1);
-
+    
     if (status == midiNoteOn)
     {
-        if (byte2 == 0) // special case, some DAWs will note off with a 0 velocity note on
-            KeyLed[key][KeyLed_virtual] = 0;
-
-        KeyLed[key][KeyLed_virtual] = colourLookup[byte2];
-        
+        int key = getKey (byte1);
         int color = colourLookup[key];
         fillPixel(color, key, 0);  
         
     }
     else if (status == midiNoteOff)
     {
-        KeyLed[key][KeyLed_virtual] = 0;
-        
+        int key = getKey (byte1);
         int color = makeARGB(255, 0, 0, 0);
-        fillPixel(color, key, 0);
+        fillPixel(color, key, 0);        
+    }
+    else if (status == midiPitchBend)
+    {
+        //TODO: Pack bytes and convert to RGB deltas
+        //0-8192 = downward offset
+        //8193-16384 = upward offset
         
-    }
-    else if (status == midiAftertouch)
-    {
-        KeyLed[key][KeyLed_brightness] = int (map (float (byte2), 0.0, 127.0, 0.0, 255.0));
-    }
-    else if (status == midiChannelPressure)
-    {
-        currentGlobalBrightness = map (float (byte2), 0.0, 127.0, 0.0, 1.0);
+        //https://forum.bome.com/t/msb-lsb-in-midifile/4881/2
+        int shift = byte1 << 7;
+        int combined = byte2 | shift;
+        
+        log(combined);
+        
+        colourLookup[channel] = makeARGB(255, combined, 0, 0);
     }
 }
 
@@ -120,34 +116,97 @@ int getKey (int note)
     return note - baseNoteNumber;
 }
 
+void testMessageReceived()
+{
+    for(int i = 0; i < 24; i++) {
+        int color = makeARGB(255, getRandomInt(max), getRandomInt(max), getRandomInt(max));
+         fillPixel(color, i, 0);
+    }
+}
+
 void fillReferenceColourTable()
 {
-    // Reference table used for sanity checking (128 values)
     int i = 0;
-    colourLookup[i++] = 0xffff4c72; 
-    colourLookup[i++] = 0xffff506f; 
-    colourLookup[i++] = 0xffff546c; 
-    colourLookup[i++] = 0xffff5869; 
-    colourLookup[i++] = 0xffff5c66; 
-    colourLookup[i++] = 0xffff6063; 
-    colourLookup[i++] = 0xffff6460; 
-    colourLookup[i++] = 0xffff695c; 
-    colourLookup[i++] = 0xffff6d59; 
-    colourLookup[i++] = 0xffff7156; 
-    colourLookup[i++] = 0xffff7553; 
-    colourLookup[i++] = 0xffff7950; 
-    colourLookup[i++] = 0xffff7d4d; 
-    colourLookup[i++] = 0xffff814a; 
-    colourLookup[i++] = 0xffff8547; 
-    colourLookup[i++] = 0xffff8944; 
-    colourLookup[i++] = 0xffff8d41; 
-    colourLookup[i++] = 0xffff923d; 
-    colourLookup[i++] = 0xffff963a; 
-    colourLookup[i++] = 0xffff9a37; 
-    colourLookup[i++] = 0xffff9e34; 
-    colourLookup[i++] = 0xffffa231; 
-    colourLookup[i++] = 0xffffa62e; 
-    colourLookup[i++] = 0xffffaa2e; 
+    colourLookup[i++] = 0xFF00FF80; //10 A#2/Bb2
+    colourLookup[i++] = 0xFF00FFFF; //11 B2
+    colourLookup[i++] = 0xFF0080FF; //0 C2
+    colourLookup[i++] = 0xFF0000FF; //1 C#2/Db2
+    colourLookup[i++] = 0xFF8000FF; //2 D2
+    colourLookup[i++] = 0xFFFF00FF; //3 D#2/Eb2
+    colourLookup[i++] = 0xFFFF0080; //4 E2
+    colourLookup[i++] = 0xFFFF0000; //5 F2
+    colourLookup[i++] = 0xFFFF8000; //6 F#2/Gb2
+    colourLookup[i++] = 0xFFFFFF00; //7 G2
+    colourLookup[i++] = 0xFF80FF00; //8 G#2/Gb2
+    colourLookup[i++] = 0xFF00FF00; //9 A2
+    //It would be possible to compare two tuning tables across 2-octave span of Lumi
+    colourLookup[i++] = 0xFF00FF80; //22 A#3/Bb3
+    colourLookup[i++] = 0xFF00FFFF; //23 B3
+    colourLookup[i++] = 0xFF0080FF; //12 C3
+    colourLookup[i++] = 0xFF0000FF; //13 C#3/Db3
+    colourLookup[i++] = 0xFF8000FF; //14 D3
+    colourLookup[i++] = 0xFFFF00FF; //15 D#3/Eb3
+    colourLookup[i++] = 0xFFFF0080; //16 E3
+    colourLookup[i++] = 0xFFFF0000; //17 F3
+    colourLookup[i++] = 0xFFFF8000; //18 F#3/Gb3
+    colourLookup[i++] = 0xFFFFFF00; //19 G3
+    colourLookup[i++] = 0xFF80FF00; //20 G#3/Ab3
+    colourLookup[i++] = 0xFF00FF00; //21 A3
+    
+    // Reference 1 table used for sanity checking (12 values - Roli-style with Red at C)
+    /*
+    colourLookup[i++] = 0xFFFF0000; //0 C2
+    colourLookup[i++] = 0xFFFF8000; //1 C#2/Db2
+    colourLookup[i++] = 0xFFFFFF00; //2 D2
+    colourLookup[i++] = 0xFF80FF00; //3 D#2/Eb2
+    colourLookup[i++] = 0xFF00FF00; //4 E2
+    colourLookup[i++] = 0xFF00FF80; //5 F2
+    colourLookup[i++] = 0xFF00FFFF; //6 F#2/Gb2
+    colourLookup[i++] = 0xFF0080FF; //7 G2
+    colourLookup[i++] = 0xFF0000FF; //8 G#2/Ab2
+    colourLookup[i++] = 0xFF8000FF; //9 A2
+    colourLookup[i++] = 0xFFFF00FF; //10 A#2/Bb2
+    colourLookup[i++] = 0xFFFF0080; //11 B2
+    colourLookup[i++] = 0xFFFF0000; //12 C3
+    colourLookup[i++] = 0xFFFF8000; //13 C#3/Db3
+    colourLookup[i++] = 0xFFFFFF00; //14 D3
+    colourLookup[i++] = 0xFF80FF00; //15 D#3/Eb3
+    colourLookup[i++] = 0xFF00FF00; //16 E3
+    colourLookup[i++] = 0xFF00FF80; //17 F3
+    colourLookup[i++] = 0xFF00FFFF; //18 F#3/Gb3
+    colourLookup[i++] = 0xFF0080FF; //19 G3
+    colourLookup[i++] = 0xFF0000FF; //20 G#3/Ab3
+    colourLookup[i++] = 0xFF8000FF; //21 A3
+    colourLookup[i++] = 0xFFFF00FF; //22 A33/Bb3
+    colourLookup[i++] = 0xFFFF0080; //23 B3
+    */
+    // Reference 2 table used for sanity checking (128 values)
+    //Original table of 128 colours spread from red to yellow or so...
+    /*
+    colourLookup[i++] = 0xffff4c72; //0 C2 //Edited to equal 0xffff506f - 0x0003fd
+    colourLookup[i++] = 0xffff506f; //1 C#2/Db2
+    colourLookup[i++] = 0xffff546c; //2 D2
+    colourLookup[i++] = 0xffff5869; //3 D#2/Eb2
+    colourLookup[i++] = 0xffff5c66; //4 E2
+    colourLookup[i++] = 0xffff6063; //5 F2
+    colourLookup[i++] = 0xffff6460; //6 F#2/Gb2
+    colourLookup[i++] = 0xffff695c; //7 G2
+    colourLookup[i++] = 0xffff6d59; //8 G#2/Ab2
+    colourLookup[i++] = 0xffff7156; //9 A2
+    colourLookup[i++] = 0xffff7553; //10 A#2/Bb2
+    colourLookup[i++] = 0xffff7950; //11 B2
+    colourLookup[i++] = 0xffff7d4d; //12 C3
+    colourLookup[i++] = 0xffff814a; //13 C#3/Db3
+    colourLookup[i++] = 0xffff8547; //14 D3
+    colourLookup[i++] = 0xffff8944; //15 D#3/Eb3
+    colourLookup[i++] = 0xffff8d41; //16 E3
+    colourLookup[i++] = 0xffff923d; //17 F3
+    colourLookup[i++] = 0xffff963a; //18 F#3/Gb3
+    colourLookup[i++] = 0xffff9a37; //19 G3
+    colourLookup[i++] = 0xffff9e34; //20 G#3/Ab3
+    colourLookup[i++] = 0xffffa231; //21 A3
+    colourLookup[i++] = 0xffffa62e; //22 A33/Bb3
+    colourLookup[i++] = 0xffffaa2e; //23 B3
     colourLookup[i++] = 0xffffae2d; 
     colourLookup[i++] = 0xffffb12d; 
     colourLookup[i++] = 0xffffb52c; 
@@ -251,5 +310,6 @@ void fillReferenceColourTable()
     colourLookup[i++] = 0xff9746ec; 
     colourLookup[i++] = 0xff9a44eb; 
     colourLookup[i++] = 0xff9d42ea; 
-    colourLookup[i++] = 0xffffffff;
+    colourLookup[i++] = 0xff9d46a7; //Edited to equal 0xff9d42ea + 0x0003fd
+    */
 }
