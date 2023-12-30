@@ -15,6 +15,9 @@ const int configItemId_octaveTopology = 8;
 int currentOctave;
 float currentGlobalBrightness;
 
+//State Variables
+int lastKeyHeld;
+
 int rVal;
 int gVal;
 int bVal;
@@ -81,7 +84,11 @@ void handleMIDI (int byte0, int byte1, int byte2)
     {
         int key = getKey (byte1);
         int color = colourLookup[key];
-        fillPixel(color, key, 0);  
+        fillPixel(color, key, 0); 
+        
+        lastKeyHeld = key;
+        
+        //log(key);
         
     }
     else if (status == midiNoteOff)
@@ -97,12 +104,21 @@ void handleMIDI (int byte0, int byte1, int byte2)
         //8193-16384 = upward offset
         
         //https://forum.bome.com/t/msb-lsb-in-midifile/4881/2
+        //log(byte1); //THIS IS THE LSB (empty when sender does not supply it)
+        //log(byte2); //THIS IS THE MSB (always supplied)
+        
         int shift = byte1 << 7;
-        int combined = byte2 | shift;
+        int offset = byte2 | shift;
         
-        log(combined);
+        //log(combined);
+        offset -= 8192; //Shift to +/- range
         
-        colourLookup[channel] = makeARGB(255, combined, 0, 0);
+        
+        //colourLookup[channel] += offset;
+        
+        fillPixel(colourLookup[channel] + offset, lastKeyHeld, 0); 
+        
+        //colourLookup[channel] = makeARGB(255, combined, 0, 0);
     }
 }
 

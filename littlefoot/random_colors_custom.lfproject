@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project name="My Project">
+  <file file="/Volumes/Extended/repos/LUMI-lights/littlefoot/specific_colours.littlefoot"
+        uuid="556e6e971eb84a51b291f58952d3e06d"/>
+  <file file="/Volumes/Extended/repos/LUMI-lights/littlefoot/ripple.littlefoot"
+        uuid="4b96ab783f984cb5aff6ea1e4c351586"/>
+  <file file="/Volumes/Extended/repos/LUMI-lights/littlefoot/LUMI Keys Block Custom Program.littlefoot"
+        uuid="9d62e2a1007643649ec607ac35099c0a"/>
+  <file file="/Volumes/Extended/repos/LUMI-lights/littlefoot/LUMI Keys Block Default Program.littlefoot"
+        uuid="ea2a89c4cea246669f86e3f58b6b5e43"/>
+  <file file="/Volumes/Extended/repos/LUMI-lights/littlefoot/random_colors.littlefoot"
+        uuid="749251a1bec3497cb00c54ea9f7e9ee1"/>
+  <openFiles>
+    <openFile uuid="9d62e2a1007643649ec607ac35099c0a"/>
+    <openFile uuid="749251a1bec3497cb00c54ea9f7e9ee1"/>
+    <openFile uuid="ea2a89c4cea246669f86e3f58b6b5e43"/>
+    <openFile uuid="4b96ab783f984cb5aff6ea1e4c351586"/>
+    <openFile uuid="556e6e971eb84a51b291f58952d3e06d"/>
+  </openFiles>
+</project>
